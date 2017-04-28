@@ -4,6 +4,7 @@ import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.gui.Plot;
 import ij.gui.Roi;
+import ij.io.FileInfo;
 import ij.plugin.PlugIn;
 import ij.plugin.frame.RoiManager;
 import ij.process.FloatPolygon;
@@ -13,11 +14,10 @@ import ij.process.ImageStatistics;
 import java.awt.Color;
 
 /**
- * v0.0 -> as submitted and published in JCS 
+ * v0.1 -> edited for Methods in Cell Biology
  * Starting point of the plugin: a stack on which one roi corresponding to the protrusion for each frame has need added
- * A lot of To be checked.
+ * Can be achieved with MacroIdentifyandSegment.ijm
  * @author paul-gilloteaux-p
- * @TODO add the preprocessing step as part of the software (with back up of the segmentation, so that it can start from a movie alone.
  * @TODO remove the centroid parameter if the normal to the tengent method is used.
  * @TODO for now only ROI area would be processed (such as the one created when using Analyse particle on a binary mask. 
  * Could be more generic on any line roi
@@ -42,6 +42,8 @@ public class Recruitment_Edge_Analysis
   public void run(String arg)
   {
     ImagePlus imp = WindowManager.getCurrentImage();
+    //FileInfo infos=imp.getFileInfo();
+    //String ImageName=infos.fileName;
     // Some checks:
     // an image should be open
     if (imp == null)
@@ -105,7 +107,8 @@ public class Recruitment_Edge_Analysis
     IJ.log("Method  " + this.method);
     
    
-    
+    int samplingHR =1; // to look for points we sample all point in the curve,
+    //sampling will only concern the initial list of data searched for.
     
     //initialize LUT
     float[] reds = new float[32];
@@ -157,7 +160,7 @@ public class Recruitment_Edge_Analysis
     // 
     double[] pos1 = new double[2];
     double[] pos2 = new double[2];
-    int fshift=3; // maximum shift? tbc
+    int fshift=linewidth; // maximum shift used only for representation purpose of the profile definition
     for (int i = 0; i < Ninit; i++)
     {
       if (this.method.compareTo("Ray Casting") == 0)
@@ -190,20 +193,21 @@ public class Recruitment_Edge_Analysis
         roinext = roilist[(r + 1)];
       imp.setSlice(r + 1);
       ip = imp.getProcessor();
-      // tbc: c'est pas l'inerse les conditions si nul ou si c'est pas une aire?
+      
       //- interrupt the program if there is no ROI in this frame OR if it is not an area
-      if (roi != null && !roi.isArea()) {
-          IJ.error("Area selection required on each frame. Problem identified with frame"+r+1);
+      if (roi == null || !roi.isArea()) {
+          IJ.error("Area selection required on each frame. Problem identified with frame"+(r+1));
           return;
         
       }
       
-      FloatPolygon p = roi.getInterpolatedPolygon(sampling, smooth);
-      FloatPolygon pnext = roinext.getInterpolatedPolygon(sampling, smooth);
-    //get the intensity values along the sample point in a band of linewidth, and keep the maximum value. Question why centroid?
+      FloatPolygon p = roi.getInterpolatedPolygon(samplingHR, smooth);
+      FloatPolygon pnext = roinext.getInterpolatedPolygon(samplingHR, smooth);
+    //get the intensity values along the sample point in a band of linewidth, and keep the maximum value.
       for (int shift = -linewidth; shift <= linewidth; shift++)
       { 
         double[] profile1frame1shift = this.getIrregularProfile(p, xinit, yinit, ip, shift, Ninit, CentroidX, CentroidY);
+        //initialize the value pixel intensity
         if (shift == -linewidth)
         {
           this.profile1frame = profile1frame1shift;
@@ -212,6 +216,7 @@ public class Recruitment_Edge_Analysis
         {
           for (int i = 0; i < Ninit; i++)
           {
+        	  // find the max of pixel instensity along the line
             if (this.profile1frame[i] < profile1frame1shift[i]) {
               this.profile1frame[i] = profile1frame1shift[i];
             }
@@ -276,10 +281,12 @@ public class Recruitment_Edge_Analysis
     ImagePlus kymo = new ImagePlus("Recruitment", nip);
     kymo.show();
     IJ.run("Fire");
+   // IJ.run("saveAs(\"Text Image", "C:\\Users\\paul-gilloteaux-p\\Documents\\GitHub\\migrationChapter\\imageJ\\dataTest\\Edge dynamics.txt");
     speed.show();
     IJ.run("Fire");
     // show our sheme @TODO add a legend
     mydraw.show();
+    
   }
 /**
  * getnewpos 
@@ -291,7 +298,7 @@ public class Recruitment_Edge_Analysis
  * @param nmax  number of initially sampled points (could be read as well from xinit size tbc
  * @param centroidX position of the refenece point X (used for ray casting only)
  * @param centroidY idem Y
- * @return the full list of new position in one array only [x1 x2.. xNmax y1...yNmax]
+ * @return the full list of new position in one array only [x1 x2.. xNmax y1...yNmax] 
  */
   private double[] getnewpos(FloatPolygon p, double[] xinit, double[] yinit, ImageProcessor ip, int nmax, double centroidX, double centroidY)
   {
@@ -299,7 +306,16 @@ public class Recruitment_Edge_Analysis
     double[] y = new double[nmax];
     for (int i = 0; i < nmax; i++)
     {
-      double[] projectedpoint = this.GetProjection(p, xinit[i], yinit[i], centroidX, centroidY);
+    	
+    	double[] projectedpoint = new double[2];
+    	 if (method.compareTo("Ray Casting") == 0)
+	        {
+    		
+    		 projectedpoint=this.GetProjectionRayCasting(p, xinit[i], yinit[i], centroidX,centroidY);
+	        }
+    	 else{
+    		 projectedpoint=this.GetProjection(p, xinit, yinit, i);
+    	 }
       x[i] = projectedpoint[0];
       y[i] = projectedpoint[1];
     }
@@ -347,7 +363,7 @@ public class Recruitment_Edge_Analysis
  * @param xinit list of  sampled x positions at frame f
  * @param yinit list of  sampled y positions at frame f
  * @param ip
- * @param shift
+ * @param shift shifted position on the line to measure intensity, should be incremented during the call to this method
  * @param nmax
  * @param centroidx position of the reference point X (used for ray casting only)
  * @param centroidy position of the reference point Y (used for ray casting only)
@@ -361,7 +377,17 @@ public class Recruitment_Edge_Analysis
     double[] yshifted = new double[nmax];
     for (int i = 0; i < nmax; i++)
     {
-      double[] projectedpoint = this.GetProjection(p, xinit[i], yinit[i], centroidx, centroidy);
+      double[] projectedpoint = new double[2];
+    		  
+    		  if (method.compareTo("Ray Casting") == 0)
+    	        {
+    			  projectedpoint = this.GetProjectionRayCasting(p, xinit[i], yinit[i], centroidx, centroidy);
+    	        }
+    	        else
+    	        {
+    	        	projectedpoint= this.GetProjection(p, xinit, yinit, i);
+    	        }  
+    		 
       x[i] = projectedpoint[0];
       y[i] = projectedpoint[1];
     }
@@ -403,7 +429,7 @@ public class Recruitment_Edge_Analysis
 /**
  * getShiftedPositionRayCasting will look for a point by launching a ray from the centroid passing trough the currentx,y point,
  * and shifted by shift (used for profile band) 
- * @param shift
+ * @param shift (should be incremented  by the call to get Shifted position)
  * @param x
  * @param y
  * @param centroidx
@@ -430,7 +456,7 @@ public class Recruitment_Edge_Analysis
   
 
   /**
-   * getShiftedPosition will look for a point by launching a ray from the centroid passing trough the currentx,y point,
+   * getShiftedPosition will look for a point by computing the tangent and its perpendicular
    * and shifted by shift (used for profile band) 
    * @param shift
    * @param x
@@ -491,51 +517,115 @@ public class Recruitment_Edge_Analysis
   }
 
 /**
- * GetProjection only ray casting???
+ * GetProjection by computing the normal to the tangent
  * @param p the new area polygon at frame f
- * @param x position on f-1
- * @param y position on f-1 (on previous curve)
- * @param centroidx
- * @param centroidy
- * @return the projection of the point x y 
+ * @param x the list of sampled point position x of f-1
+ * @param y the list of sampled point position y of f-1 (on previous curve)
+*  @param i the index of the point for which to get the projection
+ * @return the projection of the point x[i] y [i]
  */
 
-  private double[] GetProjection(FloatPolygon p, double x, double y, double centroidx, double centroidy)
+  private double[] GetProjection(FloatPolygon p, double[] x, double[] y, int i)
   {
-    double cx = x - centroidx;
-    double cy = y - centroidy;
+   
     double[] projectedpoint = new double[2];
     
-    double normc = Math.sqrt(cx * cx + cy * cy);
-    cx /= normc;
-    cy /= normc;
-    projectedpoint[0] = x;
-    projectedpoint[1] = y;
+    
+    projectedpoint[0] = x[i];
+    projectedpoint[1] = y[i];
     int count = 0;
-    if (p.contains((float)x, (float)y)) {
+    boolean reverse=false;
+    if (p.contains((float)x[i], (float)y[i])) {
+    	reverse=false;
       while (p.contains((float)projectedpoint[0], (float)projectedpoint[1]))
       {
-        projectedpoint[0] += 0.1D * cx;
-        projectedpoint[1] += 0.1D * cy;
+    	  projectedpoint=this.GetShiftedPosition(count,  x,  y, i);
+    	  if ((count > 100)||( reverse)){
+        	  
+        	  count--;
+        	  reverse=true;
+          }
+          else{
+        	  count++;
+          }
+          if (count<-100){
+          	if (this.verbose){
+              	IJ.log("did not find the contour for point position" +x[i]+" "+ y[i]);
+              }
+            return projectedpoint;
+            }
       }
     } else {
+    	reverse=false;
       while (!p.contains((float)projectedpoint[0], (float)projectedpoint[1]))
       {
-        projectedpoint[0] -= 0.1D * cx;
-        projectedpoint[1] -= 0.1D * cy;
-        count++;
-        if (count > 100){
-        	if (this.verbose){
-            	IJ.log("did not find the contour!!");
-            }
-          return projectedpoint;
+    	  projectedpoint=this.GetShiftedPosition(count,  x,  y, i);
+    	  
+          if ((count > 100)||( reverse)){
+        	  
+        	  count--;
+        	  reverse=true;
           }
+          else{
+        	  count++;
+          }
+          if (count<-100){
+          	if (this.verbose){
+              	IJ.log("did not find the contour for point position" +x[i]+" "+ y[i]);
+              }
+            return projectedpoint;
+            }
       }
+      
     }
     return projectedpoint;
   }
   
+  /**
+   * GetProjection by ray casting 
+   * @param p the new area polygon at frame f
+   * @param x position on f-1
+   * @param y position on f-1 (on previous curve)
+   * @param centroidx
+   * @param centroidy
+   * @return the projection of the point x y 
+   */
 
+    private double[] GetProjectionRayCasting(FloatPolygon p, double x, double y, double centroidx, double centroidy)
+    {
+      double cx = x - centroidx;
+      double cy = y - centroidy;
+      double[] projectedpoint = new double[2];
+      
+      double normc = Math.sqrt(cx * cx + cy * cy);
+      cx /= normc;
+      cy /= normc;
+      projectedpoint[0] = x;
+      projectedpoint[1] = y;
+      int count = 0;
+      if (p.contains((float)x, (float)y)) {
+        while (p.contains((float)projectedpoint[0], (float)projectedpoint[1]))
+        {
+          projectedpoint[0] += 0.1D * cx; //outward centroid
+          projectedpoint[1] += 0.1D * cy;
+        }
+      } else {
+        while (!p.contains((float)projectedpoint[0], (float)projectedpoint[1]))
+        {
+          projectedpoint[0] -= 0.1D * cx; //toward centroid
+          projectedpoint[1] -= 0.1D * cy;
+          count++;
+          if (count > 100){
+          	if (this.verbose){
+              	IJ.log("did not find the contour for "+x+" "+ y);
+              }
+            return projectedpoint;
+            }
+        }
+      }
+      return projectedpoint;
+    }
+    
 /**
  * just an help message
  */
