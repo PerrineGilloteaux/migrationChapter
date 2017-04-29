@@ -1,7 +1,7 @@
  kymo=zeros(50,1);
 kymo(25)=50;
 edgespeed=zeros(50,1);
-edgespeed(35)=10;
+edgespeed(15)=10;
 plot(kymo); hold on; plot(edgespeed,'r');
 lagmax=50;
 

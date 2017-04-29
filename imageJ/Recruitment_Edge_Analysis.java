@@ -64,13 +64,13 @@ public class Recruitment_Edge_Analysis
     // Cell protrusion have to be presegmented
     RoiManager myroiManager = RoiManager.getInstance();
     if (myroiManager == null) {
-      IJ.error("Roi manager should be openned and contains one roi per stack, obtained for exemple by analyse particle on the thresholded stack. Hint: You may want to use the size filtering in Analyze particle in order to get rid of small noisy area outside the cell. ");
+      IJ.error("Roi manager should be open and contains one roi per stack, obtained for exemple by analyse particle on the thresholded stack. Hint: You may want to use the size filtering in Analyze particle in order to get rid of small noisy area outside the cell. ");
       return;
     }
     // only one roi per stack in this version.
     Roi[] roilist = myroiManager.getRoisAsArray();
     if (roilist.length != numStacks) {
-      IJ.error("Roi manager should be openned and contains one roi per stack, obtained for exemple by analyse particle on the thresholded stack. Hint: You may want to use the size filtering in Analyze particle in order to get rid of small noisy area outside the cell. ");
+      IJ.error("Roi manager should be open and contains one roi per stack, obtained for exemple by analyse particle on the thresholded stack. Hint: You may want to use the size filtering in Analyze particle in order to get rid of small noisy area outside the cell. ");
       return;
     }
     
@@ -82,16 +82,15 @@ public class Recruitment_Edge_Analysis
     double CentroidX = stats.xCenterOfMass;
     double CentroidY = stats.yCenterOfMass;
     GenericDialog gd = new GenericDialog("Recruitment and Edge Dynamics Computation");
-    gd.addMessage("Recruitment_Edge_dynamics takes as input a stack, for now already processed in order to get an ROI per frame. "
-    		+ "It gives as an output both a kymograph of the speed and the intensity of the edge");
-    gd.addMessage(" A reference point has to be chosen from which the ray will be casted (RAY CASTING OPTION) , and to sign the speed (all) ");
+    gd.addMessage("Recruitment Edge Dynamics requires a segmented stack as an input. \n Segment selection must be stored in ROI manager and should be active. \n Plug-in output is displayed as two separate Kymographs displaying speed and intensity of Edge dynamics.");
+    gd.addMessage("Select the coordinates of reference point");
     gd.addNumericField("x", CentroidX, 0);
     gd.addNumericField("y", CentroidY, 0);
-    gd.addNumericField("Sampling", 1.0D, 0);
-    gd.addCheckbox(" Smooth boundary? running average", false);
+    gd.addNumericField("Sampling (One point on the contour to keep every \"Sampling\" points", 1.0D, 0);
+    gd.addCheckbox(" Smooth contours by running average", false);
     gd.addCheckbox(" Verbose (more log message)", false);
     gd.addChoice(" Method for band estimation", items, "Ray Casting");
-    gd.addNumericField("Line width (the width of the band each side of the boundary of the recruitment", 3.0D, 0);
+    gd.addNumericField("Line width (width of the band on each side of the contour to compute the recruitment", 5.0D, 0);
     gd.showDialog();
     if (gd.wasCanceled()) { return;
     }

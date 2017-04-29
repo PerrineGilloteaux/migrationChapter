@@ -6,4 +6,4 @@ The CorrelationHeatMap.Exe will be then be extracted.
 
 SourceCode: alternatively: source code can be run from any Matlab > 2014a, with signal prcessing toolbox and statistic toolbox.
 
-Note that the ImageJ plugin Recuitment Edge Dynamics need to be run frts to generate the input data for this software. 
+Note that the ImageJ plugin Recruitment Edge Dynamics need to be run first to generate the input data for this software. 
