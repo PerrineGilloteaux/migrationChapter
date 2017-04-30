@@ -27,7 +27,7 @@ for p=1:size(Kymo,2)
     ExtNormEdgeSpeed(lagmax+1:lagmax+length(NormEdgeSpeed))=NormEdgeSpeed;
     ExtNormKymo(lagmax+1:lagmax+length(NormKymo))=NormKymo;
     
-    A=xcov(ExtNormEdgeSpeed,ExtNormKymo,lagmax/intervalseconds,'coeff');
+    A=xcov(ExtNormEdgeSpeed,ExtNormKymo,ceil(lagmax/intervalseconds),'coeff');
     % A=xcorr(Kymo(:,p),EdgeSpeed(:,p),lagmax)';
     AutoCor=[AutoCor;A'];
     [tmp,idx]=max(A);
@@ -87,7 +87,9 @@ t=(-lagmax:intervalseconds:lagmax);
  xlabel('Time Lag (s)');
  ylabel('Correlation Coefficient');
 title(['Average Curve (+/-90% c. i.) between -',num2str(lagmax),' and ',num2str(lagmax),' sec. only']);
-subplot(3,1,3); plot(t,AverageCurve)
+subplot(3,1,3); plot(t,AverageCurve);
+xlabel('Time Lag (s)');
+ylabel('Correlation Coefficient');
 if (mymax<cipearson)
     AverageCurve=dialogdiscard({['cell should be discarded because maximum of correlation is ',num2str(mymax)],[' and is < to 90% CI computed by Pearson: ',num2str(cipearson)],'Do you want to keep it despite this?'},AverageCurve);
     
